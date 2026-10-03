@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard Keuangan & Chat Input</title>
+  <link rel="manifest" href="data:application/json;base64,ewogICJuYW1lIjogIkNhdGF0YW4gS2V1YW5nYW4iLAogICJzaG9ydF9uYW1lIjogIktldWFuZ2FuIiwKICAic3RhcnRfdXJsIjogIi4iLAogICJkaXNwbGF5IjogInN0YW5kYWxvbmUiLAogICJiYWNrZ3JvdW5kX2NvbG9yIjogIiNmOGY5ZmEiLAogICJ0aGVtZV9jb2xvciIjogIiMwNzVlNTQiCn0=">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-slate-100 font-sans text-slate-800 antialiased min-h-screen pb-12">
+
+  <!-- CONFIGURATION -->
+  <script>
+    // =========================================================
+    // 🔗 TEMPELKAN URL GOOGLE APPS SCRIPT ANDA DI SINI
+    // =========================================================
+    const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwblz5TLgVRVKGqRivFfFnCg0mePWpPnJJfAHRsT0ud0br0_YHJMZGrZnSpPEijl3Q/exec";
+    const USER_ID = "Imam"; // Nama Sheet di Google Sheets Anda
+  </script>
+
+  <!-- NAVBAR -->
+  <header class="bg-emerald-800 text-white shadow-md sticky top-0 z-50">
+    <div class="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center">
+      <div class="flex items-center space-x-2">
+        <span class="text-2xl">💰</span>
+        <h1 class="text-lg font-bold tracking-wide">Keuanganku PWA</h1>
+      </div>
+      <div id="connectionStatus" class="text-xs bg-emerald-900 text-emerald-200 px-3 py-1 rounded-full flex items-center gap-1.5">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span>Lokal Mode</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-4 mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+
+    <!-- INPUT CHAT SIMULATOR (WA STYLE) -->
+    <section class="md:col-span-1 bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col h-[520px]">
+      <div class="bg-emerald-700 text-white p-3 rounded-t-2xl flex items-center space-x-3">
+        <div class="w-9 h-9 rounded-full bg-emerald-600 flex items-center justify-center font-bold text-sm">BOT</div>
+        <div>
+          <h2 class="font-semibold text-sm leading-tight">Asisten Keuangan</h2>
+          <p class="text-[11px] text-emerald-200">Ketik pesan singkat untuk mencatat</p>
+        </div>
+      </div>
+
+      <div id="chatBox" class="flex-1 p-3 overflow-y-auto space-y-3 bg-[#efeae2]">
+        <div class="flex justify-start">
+          <div class="bg-white rounded-lg p-2.5 max-w-[85%] text-xs shadow-sm rounded-tl-none">
+            👋 Halo! Ketik pengeluaran atau pemasukanmu di sini.<br><br>
+            <b>Contoh:</b><br>
+            • <i>Bensin pertamax 35rb</i><br>
+            • <i>Makan padang 25k</i><br>
+            • <i>Simaksi ndaki 25k</i><br>
+            • <i>Gaji 5jt</i>
+          </div>
+        </div>
+      </div>
+
+      <form id="chatForm" class="p-2.5 bg-slate-50 border-t border-slate-200 flex gap-2 rounded-b-2xl">
+        <input type="text" id="chatInput" placeholder="Ketik transaksi... (ex: Bensin 20k)" required
+          class="flex-1 text-sm bg-white border border-slate-300 rounded-full px-4 py-2 focus:outline-none focus:border-emerald-600">
+        <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-full text-sm font-medium transition">
+          Kirim
+        </button>
+      </form>
+    </section>
+
+    <!-- DASHBOARD & STATISTIK -->
+    <section class="md:col-span-2 space-y-6">
+      
+      <!-- CARDS RINGKASAN -->
+      <div class="grid grid-cols-3 gap-3">
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+          <p class="text-xs text-slate-500 font-medium">Pemasukan Bulan Ini</p>
+          <p id="totalIncome" class="text-base font-bold text-emerald-600 mt-1">Rp 0</p>
+        </div>
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+          <p class="text-xs text-slate-500 font-medium">Pengeluaran Bulan Ini</p>
+          <p id="totalExpense" class="text-base font-bold text-rose-600 mt-1">Rp 0</p>
+        </div>
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+          <p class="text-xs text-slate-500 font-medium">Sisa Saldo</p>
+          <p id="totalBalance" class="text-base font-bold text-slate-800 mt-1">Rp 0</p>
+        </div>
+      </div>
+
+      <!-- GRAFIK -->
+      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-4">
+        <div class="flex justify-between items-center">
+          <h3 class="font-bold text-sm text-slate-700">Grafik Keuangan</h3>
+          <input type="month" id="monthFilter" class="text-xs border rounded-lg px-2 py-1 text-slate-600">
+        </div>
+        <div class="h-56">
+          <canvas id="expenseChart"></canvas>
+        </div>
+      </div>
+
+      <!-- RIWAYAT TRANSAKSI -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="p-4 border-b border-slate-100 flex justify-between items-center">
+          <h3 class="font-bold text-sm text-slate-700">Riwayat Transaksi</h3>
+          <button onclick="syncWithGAS()" class="text-xs text-emerald-600 hover:underline font-medium">🔄 Sync Google Sheets</button>
+        </div>
+        <div class="max-h-60 overflow-y-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-50 text-slate-500 sticky top-0">
+              <tr>
+                <th class="p-3">Tanggal</th>
+                <th class="p-3">Kategori</th>
+                <th class="p-3">Deskripsi</th>
+                <th class="p-3 text-right">Nominal</th>
+              </tr>
+            </thead>
+            <tbody id="transactionTable" class="divide-y divide-slate-100">
+              <!-- Content via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <script>
+    let transactions = JSON.parse(localStorage.getItem('my_expenses')) || [];
+    let chartInstance = null;
+
+    // Set default month filter (YYYY-MM)
+    document.getElementById('monthFilter').value = new Date().toISOString().slice(0, 7);
+
+    // Initial Status Check
+    if (GAS_WEB_APP_URL && !GAS_WEB_APP_URL.includes("PASTE_URL")) {
+      document.getElementById('connectionStatus').innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span><span>Connected to GAS</span>`;
+    }
+
+    // FORM HANDLER
+    document.getElementById('chatForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const inputEl = document.getElementById('chatInput');
+      const text = inputEl.value.trim();
+      if (!text) return;
+
+      appendChatMessage(text, 'user');
+      inputEl.value = '';
+
+      const parsed = parseMessage(text);
+      if (parsed.amount > 0) {
+        const now = new Date();
+        const item = {
+          id: Date.now(),
+          date: now.toISOString().split('T')[0],
+          time: now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+          type: parsed.type,
+          category: parsed.category,
+          amount: parsed.amount,
+          description: text,
+          monthYear: now.toISOString().slice(0, 7)
+        };
+
+        transactions.unshift(item);
+        saveData();
+        renderDashboard();
+
+        appendChatMessage(`✅ <b>${parsed.type.toUpperCase()} CATAT</b><br>📂 Kategori: ${parsed.category}<br>💰 Nominal: Rp ${parsed.amount.toLocaleString('id-ID')}`, 'bot');
+
+        // Send to Google Apps Script if URL is set
+        if (GAS_WEB_APP_URL && !GAS_WEB_APP_URL.includes("PASTE_URL")) {
+          try {
+            await fetch(GAS_WEB_APP_URL, {
+              method: 'POST',
+              mode: 'no-cors',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ message: text, user: USER_ID })
+            });
+          } catch (err) {
+            console.error("GAS Sync Error:", err);
+          }
+        }
+      } else {
+        appendChatMessage(`⚠️ Format nominal tidak terdeteksi.<br>Contoh: <i>Bensin 35rb</i> atau <i>Makan 25k</i>`, 'bot');
+      }
+    });
+
+    // PARSER ENGINE
+    function parseMessage(text) {
+      const lower = text.toLowerCase().trim();
+      let amount = 0;
+
+      const matchJt = lower.match(/(\d+[\d.,]*)\s*(jt|juta)/);
+      const matchK = lower.match(/(\d+[\d.,]*)\s*(k|rb|ribu)/);
+      const matchRaw = lower.match(/(\d{1,3}(\.\d{3})+|\d+)/);
+
+      if (matchJt) amount = parseFloat(matchJt[1].replace(',', '.')) * 1000000;
+      else if (matchK) amount = parseFloat(matchK[1].replace(',', '.')) * 1000;
+      else if (matchRaw) amount = parseInt(matchRaw[0].replace(/\./g, ''), 10);
+
+      let type = "Pengeluaran";
+      const incomeKeywords = ["gaji", "income", "pemasukan", "freelance", "proyek", "omset", "jualan", "dividen", "bonus", "cashback", "thr"];
+      if (incomeKeywords.some(kw => lower.includes(kw))) type = "Pemasukan";
+
+      let category = type === "Pemasukan" ? "Gaji & Pemasukan" : "Lain-lain";
+      if (type === "Pengeluaran") {
+        if (/makan|minum|kopi|sarapan|warteg|cafe|gofood|grabfood|snack|boba/.test(lower)) category = "Makan & Minum";
+        else if (/bensin|pertamax|pertalite|e-toll|parkir|gojek|grab|angkot|kereta|bus/.test(lower)) category = "Bensin & Transport";
+        else if (/servis|ganti oli|tambal ban|cuci motor|cuci mobil|bengkel/.test(lower)) category = "Servis & Kendaraan";
+        else if (/ngedate|nonton|bioskop|hadiah|kado|jalan-jalan/.test(lower)) category = "Ngedate & Pasangan";
+        else if (/belanja|supermarket|indomaret|alfamart|sabun|shampoo|beras|minyak/.test(lower)) category = "Belanja Kebutuhan";
+        else if (/ndaki|naik gunung|hiking|camping|kemah|simaksi|tenda|carrier|trangia|game|topup|netflix|spotify|futsal|badminton|gym/.test(lower)) category = "Hiburan & Hobi";
+        else if (/listrik|air|pdam|wifi|pulsa|kuota|kos|kontrakan|bpjs|cicilan/.test(lower)) category = "Tagihan & Bulanan";
+        else if (/obat|apotek|dokter|vitamin|klinik/.test(lower)) category = "Kesehatan";
+        else if (/sedekah|zakat|infaq|kondangan|arisan/.test(lower)) category = "Amal & Sosial";
+      }
+
+      return { amount, type, category };
+    }
+
+    function appendChatMessage(text, sender) {
+      const box = document.getElementById('chatBox');
+      const div = document.createElement('div');
+      div.className = `flex justify-${sender === 'user' ? 'end' : 'start'}`;
+      div.innerHTML = `
+        <div class="${sender === 'user' ? 'bg-emerald-100 text-slate-800' : 'bg-white text-slate-800'} rounded-lg p-2.5 max-w-[85%] text-xs shadow-sm ${sender === 'user' ? 'rounded-tr-none' : 'rounded-tl-none'}">
+          ${text}
+        </div>
+      `;
+      box.appendChild(div);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function saveData() {
+      localStorage.setItem('my_expenses', JSON.stringify(transactions));
+    }
+
+    function renderDashboard() {
+      const selectedMonth = document.getElementById('monthFilter').value;
+      const filtered = transactions.filter(t => t.monthYear === selectedMonth);
+
+      let income = 0, expense = 0;
+      filtered.forEach(t => {
+        if (t.type === 'Pemasukan') income += t.amount;
+        else expense += t.amount;
+      });
+
+      document.getElementById('totalIncome').innerText = `Rp ${income.toLocaleString('id-ID')}`;
+      document.getElementById('totalExpense').innerText = `Rp ${expense.toLocaleString('id-ID')}`;
+      document.getElementById('totalBalance').innerTextBerikut adalah kode utuh file **`index.html`** yang sudah diperbarui. 
+
+Di dalam kode ini, variabel `GAS_WEB_APP_URL` sudah ditempatkan di paling atas blok `<script>` agar Anda bisa langsung menempelkan URL dari Google Apps Script milik Anda.
+
+```html
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard Keuangan & PWA Input</title>
+  <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
+  <script src="[https://cdn.jsdelivr.net/npm/chart.js](https://cdn.jsdelivr.net/npm/chart.js)"></script>
+  <link rel="stylesheet" href="[https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css](https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css)">
+  <style>
+    body { background-color: #f3f4f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    .chat-bubble-user { background-color: #dcf8c6; border-radius: 12px 12px 0 12px; }
+    .chat-bubble-bot { background-color: #ffffff; border-radius: 12px 12px 12px 0; }
+  </style>
+</head>
+<body class="p-2 md:p-6">
+
+  <div class="max-w-6xl mx-auto space-y-6">
+    
+    <!-- HEADER -->
+    <header class="bg-emerald-600 text-white p-4 md:p-6 rounded-2xl shadow-lg flex flex-col md:flex-row justify-between items-center gap-4">
+      <div>
+        <h1 class="text-2xl md:text-3xl font-bold flex items-center gap-2">
+          <i class="fa-solid fa-wallet"></i> Catatan Keuangan PWA
+        </h1>
+        <p class="text-emerald-100 text-sm mt-1">Input cepat gaya chat & sinkronisasi otomatis ke Google Sheets</p>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="switchTab('input')" id="btn-tab-input" class="px-4 py-2 bg-white text-emerald-700 font-semibold rounded-xl shadow hover:bg-emerald-50 transition">
+          <i class="fa-solid fa-paper-plane mr-1"></i> Quick Input
+        </button>
+        <button onclick="switchTab('dashboard')" id="btn-tab-dash" class="px-4 py-2 bg-emerald-700 text-white font-semibold rounded-xl shadow hover:bg-emerald-800 transition">
+          <i class="fa-solid fa-chart-line mr-1"></i> Dashboard
+        </button>
+      </div>
+    </header>
+
+    <!-- SECTION 1: SIMULATOR INPUT CHAT -->
+    <section id="section-input" class="bg-white rounded-2xl shadow-md p-4 md:p-6">
+      <div class="border-b pb-3 mb-4 flex justify-between items-center">
+        <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+          <i class="fa-solid fa-comments text-emerald-600"></i> Form Chat Input Cepat
+        </h2>
+        <span class="text-xs bg-emerald-100 text-emerald-800 font-medium px-2.5 py-1 rounded-full">Format Bebas</span>
+      </div>
+
+      <!-- Chat History Box -->
+      <div id="chat-box" class="bg-slate-100 p-4 rounded-xl h-80 overflow-y-auto space-y-3 mb-4 flex flex-col">
+        <div class="chat-bubble-bot p-3 max-w-[85%] text-gray-800 text-sm shadow-sm self-start">
+          👋 Halo! Silakan ketik transaksi Anda seperti mengirim pesan.<br>
+          <span class="text-xs text-gray-500 mt-1 block">Contoh: "Bensin pertamax 35rb", "Makan siang 25k", "Simaksi ndaki 25k", "Gaji 5jt"</span>
+        </div>
+      </div>
+
+      <!-- Input Form -->
+      <form id="chat-form" onsubmit="handleSend(event)" class="flex gap-2">
+        <input type="text" id="chat-input" placeholder="Ketik transaksi di sini (misal: Bensin 35rb)..." 
+               class="flex-1 border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm" required>
+        <button type="submit" id="btn-submit" class="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-semibold shadow transition flex items-center gap-2">
+          <span>Kirim</span>
+          <i class="fa-solid fa-paper-plane"></i>
+        </button>
+      </form>
+    </section>
+
+    <!-- SECTION 2: DASHBOARD & REKAP -->
+    <section id="section-dashboard" class="hidden space-y-6">
+      
+      <!-- Summary Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white p-5 rounded-2xl shadow-md border-l-4 border-blue-500">
+          <p class="text-xs text-gray-500 font-semibold uppercase">Pemasukan Bulan Ini</p>
+          <h3 id="stat-income" class="text-xl font-bold text-blue-600 mt-1">Rp 0</h3>
+        </div>
+        <div class="bg-white p-5 rounded-2xl shadow-md border-l-4 border-rose-500">
+          <p class="text-xs text-gray-500 font-semibold uppercase">Pengeluaran Bulan Ini</p>
+          <h3 id="stat-expense" class="text-xl font-bold text-rose-600 mt-1">Rp 0</h3>
+        </div>
+        <div class="bg-white p-5 rounded-2xl shadow-md border-l-4 border-emerald-500">
+          <p class="text-xs text-gray-500 font-semibold uppercase">Sisa Saldo Bulan Ini</p>
+          <h3 id="stat-balance" class="text-xl font-bold text-emerald-600 mt-1">Rp 0</h3>
+        </div>
+        <div class="bg-white p-5 rounded-2xl shadow-md border-l-4 border-amber-500">
+          <p class="text-xs text-gray-500 font-semibold uppercase">Total Pengeluaran Tahun Ini</p>
+          <h3 id="stat-yearly-expense" class="text-xl font-bold text-amber-600 mt-1">Rp 0</h3>
+        </div>
+      </div>
+
+      <!-- Charts Row -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white p-5 rounded-2xl shadow-md">
+          <h3 class="text-md font-bold text-gray-700 mb-4">Pengeluaran Per Kategori</h3>
+          <div class="relative h-64 flex justify-center">
+            <canvas id="categoryChart"></canvas>
+          </div>
+        </div>
+        <div class="bg-white p-5 rounded-2xl shadow-md">
+          <h3 class="text-md font-bold text-gray-700 mb-4">Tren Pemasukan vs Pengeluaran (Tahunan)</h3>
+          <div class="relative h-64">
+            <canvas id="monthlyChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Table History -->
+      <div class="bg-white p-5 rounded-2xl shadow-md">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+          <h3 class="text-md font-bold text-gray-700">Riwayat Transaksi</h3>
+          <button onclick="exportCSV()" class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs rounded-lg font-semibold border transition">
+            <i class="fa-solid fa-file-csv mr-1"></i> Export CSV
+          </button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-gray-50 text-gray-600 font-semibold border-b">
+              <tr>
+                <th class="p-3">Tanggal</th>
+                <th class="p-3">Tipe</th>
+                <th class="p-3">Kategori</th>
+                <th class="p-3">Deskripsi</th>
+                <th class="p-3 text-right">Nominal</th>
+              </tr>
+            </thead>
+            <tbody id="table-body" class="divide-y text-gray-700">
+              <tr><td colspan="5" class="p-4 text-center text-gray-400">Belum ada transaksi.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <script>
+    // =========================================================
+    // 🔗 PASTEKAN URL GOOGLE APPS SCRIPT ANDA DI SINI
+    // =========================================================
+    const GAS_WEB_APP_URL = "[https://script.google.com/macros/s/AKfycbwblz5TLgVRVKGqRivFfFnCg0mePWpPnJJfAHRsT0ud0br0_YHJMZGrZnSpPEijl3Q/exec)";
+    const USER_ID = "Imam"; // Nama tab di Google Sheets
+
+    let transactions = JSON.parse(localStorage.getItem("pwa_transactions")) || [];
+    let catChart, monChart;
+
+    document.addEventListener("DOMContentLoaded", () => {
+      initCharts();
+      updateDashboard();
+      fetchFromGAS();
+    });
+
+    function switchTab(tab) {
+      if (tab === 'input') {
+        document.getElementById('section-input').classList.remove('hidden');
+        document.getElementById('section-dashboard').classList.add('hidden');
+        document.getElementById('btn-tab-input').className = "px-4 py-2 bg-white text-emerald-700 font-semibold rounded-xl shadow hover:bg-emerald-50 transition";
+        document.getElementById('btn-tab-dash').className = "px-4 py-2 bg-emerald-700 text-white font-semibold rounded-xl shadow hover:bg-emerald-800 transition";
+      } else {
+        document.getElementById('section-input').classList.add('hidden');
+        document.getElementById('section-dashboard').classList.remove('hidden');
+        document.getElementById('btn-tab-dash').className = "px-4 py-2 bg-white text-emerald-700 font-semibold rounded-xl shadow hover:bg-emerald-50 transition";
+        document.getElementById('btn-tab-input').className = "px-4 py-2 bg-emerald-700 text-white font-semibold rounded-xl shadow hover:bg-emerald-800 transition";
+        updateDashboard();
+      }
+    }
